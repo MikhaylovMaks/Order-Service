@@ -51,7 +51,6 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// сохраняем заказ в кэш
 	h.store.Save(order)
 
 	w.WriteHeader(http.StatusCreated)

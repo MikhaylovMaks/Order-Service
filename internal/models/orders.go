@@ -25,7 +25,7 @@ type Payment struct {
 	CustomFee    int    `json:"custom_fee" validate:"required"`
 }
 
-type Item struct {
+type Items struct {
 	ChrtID      int    `json:"chrt_id" validate:"required"`
 	TrackNumber string `json:"track_number" validate:"required"`
 	Price       int    `json:"price" validate:"required"`
@@ -43,11 +43,11 @@ type Order struct {
 	OrderUID          string    `json:"order_uid" validate:"required"`
 	TrackNumber       string    `json:"track_number" validate:"required"`
 	Entry             string    `json:"entry" validate:"required"`
-	Delivery          Delivery  `json:"delivery" validate:"required"`
-	Payment           Payment   `json:"payment" validate:"required"`
-	Items             []Item    `json:"items" validate:"required"`
+	Delivery          Delivery  `json:"delivery_id" validate:"required"`
+	Payment           Payment   `json:"payment_id" validate:"required"`
+	Items             []Items   `json:"items_id" validate:"required"`
 	Locale            string    `json:"locale" validate:"required"`
-	InternalSignature string    `json:"internal_signature" validate:"required"`
+	InternalSignature string    `json:"internal_signature"`
 	CustomerID        string    `json:"customer_id" validate:"required"`
 	DeliveryService   string    `json:"delivery_service" validate:"required"`
 	ShardKey          string    `json:"shardkey" validate:"required"`

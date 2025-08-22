@@ -10,7 +10,9 @@ import (
 )
 
 func main() {
+
 	store := storage.NewMemoryStorage()
+
 	h := handlers.NewHandler(store)
 
 	http.HandleFunc("/health", h.HealthCheck)
