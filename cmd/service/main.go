@@ -7,9 +7,18 @@ import (
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/handlers"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// logger
+	logger, err := zap.NewProduction()
+	if err != nil {
+		panic(fmt.Sprint("failed to init logger: %v", err))
+	}
+	defer logger.Sync()
+	sugar := logger.Sugar()
+	sugar.Infow("starting server")
 
 	store := storage.NewMemoryStorage()
 

@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+postgres:
+  host: localhost
+  port: 5432
+  user: orders_user
+  password: maksim19
+  dbname: orders_db
+  sslmode: disable
+
+kafka:
+  brokers:
+    - 'localhost:9092'
+  topic: 'orders'
