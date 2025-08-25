@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -24,18 +24,18 @@ type Postgres struct {
 	DBName   string `yaml:"dbname" env:"POSTGRES_DBNAME"`
 }
 
-func NewConfig() *Config {
+func NewConfig() (*Config, error) {
 	var cfg Config
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
-		log.Fatal("CONFIG_PATH environment variable is not set")
+		return nil, fmt.Errorf("CONFIG_PATH environment variable is not set")
 	}
 	if _, err := os.Stat(configPath); err != nil {
-		log.Fatalf("error opening config file: %s", err)
+		return nil, fmt.Errorf("error opening config file: %w", err)
 	}
-	err := cleanenv.ReadConfing(configPath, &cfg)
+	err := cleanenv.ReadConfig(configPath, &cfg)
 	if err != nil {
-		log.Fatalf("cannot read config: %s", err)
+		return nil, fmt.Errorf("cannot read config: %w", err)
 	}
-	return &cfg
+	return &cfg, nil
 }
