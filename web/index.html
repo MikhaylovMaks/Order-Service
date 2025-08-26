@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Order Viewer</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				margin: 40px;
+			}
+			input,
+			button {
+				padding: 8px;
+				font-size: 16px;
+				margin-right: 8px;
+			}
+			pre {
+				background: #f4f4f4;
+				padding: 10px;
+				border-radius: 4px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Order Viewer</h1>
+
+		<label for="orderId">Order ID:</label>
+		<input type="text" id="orderId" placeholder="Введите ID заказа" />
+		<button id="getOrder">Получить заказ</button>
+
+		<h2>Данные заказа:</h2>
+		<pre id="result">Здесь будет JSON</pre>
+
+		<script>
+			const button = document.getElementById('getOrder')
+			const result = document.getElementById('result')
+
+			button.addEventListener('click', async () => {
+				const orderId = document.getElementById('orderId').value.trim()
+				if (!orderId) {
+					alert('Введите ID заказа!')
+					return
+				}
+
+				try {
+					const response = await fetch(`/order/${orderId}`)
+					if (!response.ok) {
+						result.textContent = `Ошибка: ${response.status} ${response.statusText}`
+						return
+					}
+					const data = await response.json()
+					result.textContent = JSON.stringify(data, null, 2)
+				} catch (err) {
+					result.textContent = 'Ошибка запроса: ' + err
+				}
+			})
+		</script>
+	</body>
+</html>

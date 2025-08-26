@@ -41,12 +41,13 @@ func main() {
 	store := storage.NewMemoryStorage()
 
 	h := handlers.NewHandler(store)
-
+	http.Handle("/", http.FileServer(http.Dir("./web")))
 	http.HandleFunc("/health", h.HealthCheck)
 	http.HandleFunc("/order/", h.GetOrder)   // GET /order/{id}
 	http.HandleFunc("/order", h.CreateOrder) // POST /order
 
 	addr := ":8081"
+
 	fmt.Println("Server started at", addr)
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatal("server failed:", err)
