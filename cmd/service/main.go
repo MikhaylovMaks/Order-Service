@@ -9,8 +9,8 @@ import (
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/config"
 	"github.com/MikhaylovMaks/wb_techl0/internal/handlers"
-	"github.com/MikhaylovMaks/wb_techl0/internal/repository/postgres"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
+	"github.com/MikhaylovMaks/wb_techl0/pkg/postgres"
 	"go.uber.org/zap"
 )
 
@@ -47,16 +47,15 @@ func main() {
 	http.HandleFunc("/order", h.CreateOrder) // POST /order
 
 	addr := ":8081"
-
-	fmt.Println("Server started at", addr)
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatal("server failed:", err)
-	}
-	fmt.Printf("Server is ready on port: %d\n", cfg.Server.Port)
 	var greeting string
 	err = db.Pool.QueryRow(context.Background(), "select 'Hello, world!'").Scan(&greeting)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "QueryRow failed: %v", err)
 	}
 	log.Println("DB says:", greeting)
+	fmt.Println("Server started at", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Fatal("server failed:", err)
+	}
+	fmt.Printf("Server is ready on port: %d\n", cfg.Server.Port)
 }
