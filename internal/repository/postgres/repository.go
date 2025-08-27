@@ -72,3 +72,62 @@ func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 	}
 	return nil
 }
+
+func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Order, error) {
+	// 1. Order + delivery_id + payment_id
+	var order models.Order
+	var deliveryID, paymentID int
+
+	err := r.db.QueryRow(ctx, `SELECT o.order.uid, o.track_number, o.entry, o.locale, o.internal_signature,
+			   o.customer_id, o.delivery_service, o.shardkey, o.sm_id, o.date_created,
+			   o.oof_shard, o.delivery_id, o.payment_id
+				FROM orders o
+				WHERE o.order_uid = $1
+				`, uid).Scan(&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature,
+		&order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID,
+		&order.DateCreated, &order.OofShard, &deliveryID, &paymentID)
+	if err != nil {
+		return nil, fmt.Errorf("get order failed: %w", err)
+	}
+
+	// 2. Delivery
+	err = r.db.QueryRow(ctx, `SELECT name, phone, zip, city, address, region, email
+	FROM delivery WHERE id = &1`,
+		deliveryID).Scan(&order.Delivery.Name, &order.Delivery.Phone, &order.Delivery.Zip, &order.Delivery.Zip, &order.Delivery.City,
+		&order.Delivery.Region, &order.Delivery.Email)
+	if err != nil {
+		return nil, fmt.Errorf("get delivery failed: %w", err)
+	}
+
+	// 3. Payment
+	err = r.db.QueryRow(ctx, `SELECT transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, goods_total, custom_fee
+	FROM payment WHERE id = &1`,
+		paymentID).Scan(&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency, &order.Payment.Provider, &order.Payment.Amount, &order.Payment.PaymentDT, &order.Payment.Bank, &order.Payment.DeliveryCost, &order.Payment.GoodsTotal, &order.Payment.CustomFee)
+	if err != nil {
+		return nil, fmt.Errorf("get payment failed: %w", err)
+	}
+
+	// 4. Items  - order_items
+	rows, err := r.db.Query(ctx, `
+	SELECT i.chrt_id, i.track_number, i.price, i.rid, i.name, i.sale, i.size, i.total_price, i.nm_id, i.brand, i.status
+	FROM items i
+	JOIN order_items oi ON oi.item_id = i.id
+	WHERE oi.order_uid = $1`,
+		order.OrderUID)
+	if err != nil {
+		return nil, fmt.Errorf("get items failed: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item models.Items
+		if err := rows.Scan(
+			&item.ChrtID, &item.TrackNumber, &item.Price, &item.RID,
+			&item.Name, &item.Sale, &item.Size, &item.TotalPrice, &item.NmID, &item.Brand, &item.Status,
+		); err != nil {
+			return nil, fmt.Errorf("scan item failed: %w", err)
+		}
+		order.Items = append(order.Items, item)
+	}
+	return &order, nil
+}
