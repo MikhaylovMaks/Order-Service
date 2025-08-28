@@ -21,7 +21,7 @@ type Postgres struct {
 	Port     int    `yaml:"port" env:"POSTGRES_PORT"`
 	User     string `yaml:"user" env:"POSTGRES_USER"`
 	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
-	DBName   string `yaml:"dbname" env:"POSTGRES_DBNAME"`
+	DBName   string `yaml:"dbname" env:"POSTGRES_DB"`
 }
 
 func NewConfig() (*Config, error) {
