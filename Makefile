@@ -5,10 +5,10 @@ PORT := 8081
 BIN := service
 
 run:
-	CONFIG_PATH=$(CONFIG_PATH) go run ./cmd/service
+	go run ./cmd/service
 
 build:
-	CONFIG_PATH=$(CONFIG_PATH) go build -o $(BIN) ./cmd/service
+	go build -o $(BIN) ./cmd/service
 
 clean:
 	rm -f $(BIN)

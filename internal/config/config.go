@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	Server   `yaml:"server" `
+	Server   `yaml:"server"`
 	Postgres `yaml:"postgres"`
+	Kafka    `yaml:"kafka"`
 }
 
 type Server struct {
@@ -22,6 +23,12 @@ type Postgres struct {
 	User     string `yaml:"user" env:"POSTGRES_USER"`
 	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
 	DBName   string `yaml:"dbname" env:"POSTGRES_DB"`
+}
+
+type Kafka struct {
+	Broker  string `yaml:"broker" env:"KAFKA_BROKER"`
+	Topic   string `yaml:"topic" env:"KAFKA_TOPIC"`
+	GroupID string `yaml:"group_id" env:"KAFKA_GROUP_ID"`
 }
 
 func NewConfig() (*Config, error) {

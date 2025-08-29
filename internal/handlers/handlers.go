@@ -1,58 +1,54 @@
-package handlers
+package http
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"log"
 	"net/http"
-	"strings"
+	"strconv"
 
-	"github.com/MikhaylovMaks/wb_techl0/internal/models"
+	"github.com/gorilla/mux"
+
+	"github.com/MikhaylovMaks/wb_techl0/internal/repository/postgres"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
 )
 
-type Handler struct {
-	store storage.Storage
+type Server struct {
+	port  int
+	repo  postgres.OrderRepository
+	cache storage.Cache
 }
 
-func NewHandler(store storage.Storage) *Handler {
-	return &Handler{store: store}
+func NewServer(port int, repo postgres.OrderRepository, cache storage.Cache) *Server {
+	return &Server{port: port, repo: repo, cache: cache}
 }
 
-func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("ok"))
+func (s *Server) Start() {
+	r := mux.NewRouter()
+	r.HandleFunc("/orders/{id}", s.getOrder).Methods("GET")
+
+	addr := ":" + strconv.Itoa(s.port)
+	log.Printf("HTTP server listening on %s", addr)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Fatalf("http server error: %v", err)
+	}
 }
 
-// GET /order/{id}
-func (h *Handler) GetOrder(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/order/")
+func (s *Server) getOrder(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
 
-	order, ok := h.store.Get(id)
-	if !ok {
+	// check cache
+	if order, ok := s.cache.Get(id); ok {
+		json.NewEncoder(w).Encode(order)
+		return
+	}
+
+	// check DB
+	order, err := s.repo.GetOrderByUID(r.Context(), id)
+	if err != nil {
 		http.Error(w, "order not found", http.StatusNotFound)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
+	s.cache.Set(id, order)
 	json.NewEncoder(w).Encode(order)
-}
-
-// POST /order
-func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var order models.Order
-	if err := json.Unmarshal(body, &order); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-
-	h.store.Save(order)
-
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("order saved"))
 }
