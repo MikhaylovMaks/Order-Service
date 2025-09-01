@@ -3,21 +3,23 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"errors"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/models"
 	"github.com/MikhaylovMaks/wb_techl0/internal/repository/postgres"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
 	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
 )
 
 type Consumer struct {
 	reader *kafka.Reader
 	repo   postgres.OrderRepository
 	cache  storage.Cache
+	log    *zap.SugaredLogger
 }
 
-func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRepository, cache storage.Cache) *Consumer {
+func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRepository, cache storage.Cache, log *zap.SugaredLogger) *Consumer {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
@@ -29,38 +31,39 @@ func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRep
 		reader: r,
 		repo:   repo,
 		cache:  cache,
+		log:    log,
 	}
 }
 
 func (c *Consumer) Start(ctx context.Context) {
 	defer c.reader.Close()
-
-	log.Println("Kafka consumer started...")
+	c.log.Info("Kafka consumer started")
 	for {
-		select {
-		case <-ctx.Done():
-			log.Println("Kafka consumer stopped")
-			return
-		default:
-			m, err := c.reader.ReadMessage(ctx)
-			if err != nil {
-				log.Printf("error reading kafka message: %v", err)
-				continue
+		m, err := c.reader.FetchMessage(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				c.log.Info("Kafka consumer stopped")
+				return
 			}
-
-			var order models.Order
-			if err := json.Unmarshal(m.Value, &order); err != nil {
-				log.Printf("invalid json: %v", err)
-				continue
-			}
-
-			if err := c.repo.SaveOrder(ctx, &order); err != nil {
-				log.Printf("failed to save order: %v", err)
-				continue
-			}
-
-			c.cache.Set(order.OrderUID, &order)
-			log.Printf("order saved from kafka: %s", order.OrderUID)
+			c.log.Errorw("error fetching message", "err", err)
+			continue
 		}
+
+		var order models.Order
+		if err := json.Unmarshal(m.Value, &order); err != nil || order.OrderUID == "" {
+			c.log.Warnw("invalid message", "err", err, "raw", string(m.Value))
+			_ = c.reader.CommitMessages(ctx, m)
+			continue
+		}
+
+		if err := c.repo.SaveOrder(ctx, &order); err != nil {
+			c.log.Errorw("failed to save order", "err", err, "order_uid", order.OrderUID)
+			continue
+		}
+
+		c.cache.Set(order.OrderUID, &order)
+		c.log.Infow("order saved", "order_uid", order.OrderUID)
+
+		_ = c.reader.CommitMessages(ctx, m)
 	}
 }

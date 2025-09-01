@@ -1,3 +1,4 @@
+.PHONY: build
 CONFIG_PATH := ./config/config.yaml
 
 PORT := 8081
@@ -5,7 +6,7 @@ PORT := 8081
 BIN := service
 
 run:
-	go run ./cmd/service
+	CONFIG_PATH=$(CONFIG_PATH) go run ./cmd/service
 
 build:
 	go build -o $(BIN) ./cmd/service

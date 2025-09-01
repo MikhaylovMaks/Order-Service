@@ -13,7 +13,9 @@ type Storage struct {
 }
 
 func (s *Storage) Close() {
-	panic("unimplemented")
+	if s.Pool != nil {
+		s.Pool.Close()
+	}
 }
 
 func NewPostgres(ctx context.Context, cfg config.Postgres) (*Storage, error) {

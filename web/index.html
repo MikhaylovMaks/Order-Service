@@ -43,7 +43,7 @@
 				}
 
 				try {
-					const response = await fetch(`/order/${orderId}`)
+					const response = await fetch(`/orders/${orderId}`)
 					if (!response.ok) {
 						result.textContent = `Ошибка: ${response.status} ${response.statusText}`
 						return

@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/models"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -20,6 +22,8 @@ type Repository struct {
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
+
+var ErrOrderNotFound = errors.New("order not found")
 
 func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 	tx, err := r.db.Begin(ctx)
@@ -79,9 +83,10 @@ func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 }
 
 func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Order, error) {
-	// 1. Order + delivery_id + payment_id
 	var order models.Order
 	var deliveryID, paymentID int
+
+	fmt.Println("Ищу заказ с UID:", uid)
 
 	err := r.db.QueryRow(ctx, `SELECT o.order_uid, o.track_number, o.entry, o.locale, o.internal_signature,
 			   o.customer_id, o.delivery_service, o.shardkey, o.sm_id, o.date_created,
@@ -92,46 +97,64 @@ func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Ord
 		&order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID,
 		&order.DateCreated, &order.OofShard, &deliveryID, &paymentID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrOrderNotFound
+		}
 		return nil, fmt.Errorf("get order failed: %w", err)
 	}
 
+	fmt.Println("Заказ найден:", order.OrderUID, "deliveryID:", deliveryID, "paymentID:", paymentID)
+
 	// 2. Delivery
 	err = r.db.QueryRow(ctx, `SELECT name, phone, zip, city, address, region, email
-	FROM delivery WHERE id = $1`,
-		deliveryID).Scan(&order.Delivery.Name, &order.Delivery.Phone, &order.Delivery.Zip, &order.Delivery.City, &order.Delivery.Address,
-		&order.Delivery.Region, &order.Delivery.Email)
+	FROM delivery WHERE id = $1`, deliveryID).Scan(
+		&order.Delivery.Name, &order.Delivery.Phone, &order.Delivery.Zip,
+		&order.Delivery.City, &order.Delivery.Address, &order.Delivery.Region,
+		&order.Delivery.Email)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrOrderNotFound
+		}
 		return nil, fmt.Errorf("get delivery failed: %w", err)
 	}
 
 	// 3. Payment
 	err = r.db.QueryRow(ctx, `SELECT transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, goods_total, custom_fee
-	FROM payment WHERE id = $1`,
-		paymentID).Scan(&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency, &order.Payment.Provider, &order.Payment.Amount, &order.Payment.PaymentDT, &order.Payment.Bank, &order.Payment.DeliveryCost, &order.Payment.GoodsTotal, &order.Payment.CustomFee)
+	FROM payment WHERE id = $1`, paymentID).Scan(
+		&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency,
+		&order.Payment.Provider, &order.Payment.Amount, &order.Payment.PaymentDT,
+		&order.Payment.Bank, &order.Payment.DeliveryCost, &order.Payment.GoodsTotal,
+		&order.Payment.CustomFee)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrOrderNotFound
+		}
 		return nil, fmt.Errorf("get payment failed: %w", err)
 	}
 
-	// 4. Items  - order_items
-	rows, err := r.db.Query(ctx, `
-	SELECT chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status
-	FROM items
-	WHERE order_uid = $1`,
-		order.OrderUID)
+	// 4. Items
+	rows, err := r.db.Query(ctx, `SELECT chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status
+	FROM items WHERE order_uid = $1`, order.OrderUID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrOrderNotFound
+		}
 		return nil, fmt.Errorf("get items failed: %w", err)
 	}
-	defer rows.Close()
+
 	order.Items = []models.Items{}
 	for rows.Next() {
 		var item models.Items
 		if err := rows.Scan(
 			&item.ChrtID, &item.TrackNumber, &item.Price, &item.RID,
-			&item.Name, &item.Sale, &item.Size, &item.TotalPrice, &item.NmID, &item.Brand, &item.Status,
+			&item.Name, &item.Sale, &item.Size, &item.TotalPrice,
+			&item.NmID, &item.Brand, &item.Status,
 		); err != nil {
 			return nil, fmt.Errorf("scan item failed: %w", err)
 		}
 		order.Items = append(order.Items, item)
 	}
+	fmt.Println("Найдено items:", len(order.Items))
+
 	return &order, nil
 }

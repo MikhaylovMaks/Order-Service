@@ -3,6 +3,7 @@ module github.com/MikhaylovMaks/wb_techl0
 go 1.23.0
 
 require (
+	github.com/brianvoe/gofakeit/v7 v7.5.0
 	github.com/gorilla/mux v1.8.1
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v4 v4.18.3

@@ -3,65 +3,85 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/config"
 	"github.com/MikhaylovMaks/wb_techl0/internal/handlers"
+	"github.com/MikhaylovMaks/wb_techl0/internal/kafka"
 	"github.com/MikhaylovMaks/wb_techl0/internal/repository/postgres"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
 	"github.com/MikhaylovMaks/wb_techl0/pkg/database"
-	"go.uber.org/zap"
+	"github.com/MikhaylovMaks/wb_techl0/pkg/logger"
 )
 
 func main() {
+	log, err := logger.NewLogger()
+	if err != nil {
+		fmt.Printf("failed to init logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer log.Sync()
+	log.Info("service starting...")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+
 	cfg, err := config.NewConfig()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	logger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatalf("failed to init logger: %v", err)
-	}
-	defer logger.Sync()
-	sugar := logger.Sugar()
-	sugar.Infow("starting server")
-	// db
-	ctx := context.Background()
 	db, err := database.NewPostgres(ctx, cfg.Postgres)
 	if err != nil {
-		log.Fatalf("failed to init postgres: %v", err)
+		log.Fatalf("failed to connect to database: %v", err)
 	}
-	sugar.Infow("connected to postgres", "host", cfg.Postgres.Host, "db", cfg.Postgres.DBName)
-	defer db.Pool.Close()
-	store := storage.NewMemoryStorage()
+	defer db.Close()
 
 	repo := postgres.NewRepository(db.Pool)
 
-	orderFromDB, err := repo.GetOrderByUID(ctx, "1")
-	if err != nil {
-		log.Fatalf("failed to get order: %v", err)
-	}
-	fmt.Printf("Loaded order: %+v\n", orderFromDB)
+	cache := storage.NewMemoryStorage()
 
-	h := handlers.NewHandler(store)
+	consumer := kafka.NewConsumer(
+		[]string{cfg.Kafka.Broker},
+		cfg.Kafka.Topic,
+		cfg.Kafka.GroupID,
+		repo,
+		cache,
+		log,
+	)
+
+	producer := kafka.NewProducer([]string{cfg.Kafka.Broker}, cfg.Kafka.Topic, log)
+	var wg sync.WaitGroup
+	wg.Add(3)
+	server := handlers.NewServer(cfg.Server.Port, repo, cache, log)
 	http.Handle("/", http.FileServer(http.Dir("./web")))
-	http.HandleFunc("/health", h.HealthCheck)
-	http.HandleFunc("/order/", h.GetOrder)
-	http.HandleFunc("/order", h.CreateOrder)
+	go func() {
+		defer wg.Done()
+		consumer.Start(ctx)
+	}()
 
-	addr := ":8081"
-	var greeting string
-	err = db.Pool.QueryRow(context.Background(), "select 'Hello, world!'").Scan(&greeting)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v", err)
-	}
-	log.Println("DB says:", greeting)
-	fmt.Println("Server started at", addr)
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatal("server failed:", err)
-	}
-	fmt.Printf("Server is ready on port: %d\n", cfg.Server.Port)
+	go func() {
+		defer wg.Done()
+		producer.Start(ctx)
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := server.Start(); err != nil {
+			log.Errorw("http server stopped", "err", err)
+			cancel()
+		}
+	}()
+	<-sigs
+	log.Info("shutdown signal received")
+	cancel()
+
+	wg.Wait()
+	log.Info("service stopped")
 }

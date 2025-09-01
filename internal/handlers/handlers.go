@@ -1,54 +1,83 @@
-package http
+package handlers
 
 import (
 	"encoding/json"
-	"log"
+	"errors"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
-
 	"github.com/MikhaylovMaks/wb_techl0/internal/repository/postgres"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
+	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 type Server struct {
 	port  int
 	repo  postgres.OrderRepository
 	cache storage.Cache
+	log   *zap.SugaredLogger
 }
 
-func NewServer(port int, repo postgres.OrderRepository, cache storage.Cache) *Server {
-	return &Server{port: port, repo: repo, cache: cache}
+func NewServer(port int, repo postgres.OrderRepository, cache storage.Cache, log *zap.SugaredLogger) *Server {
+	return &Server{port: port, repo: repo, cache: cache, log: log}
 }
 
-func (s *Server) Start() {
+func (s *Server) Start() error {
 	r := mux.NewRouter()
-	r.HandleFunc("/orders/{id}", s.getOrder).Methods("GET")
+
+	r.HandleFunc("/orders/{order_uid}", s.GetOrder).Methods(http.MethodGet)
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/")))
 
 	addr := ":" + strconv.Itoa(s.port)
-	log.Printf("HTTP server listening on %s", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("http server error: %v", err)
+	s.log.Infow("HTTP server listening", "addr", addr)
+	if err := http.ListenAndServe(addr, r); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		s.log.Errorw("http server error", "err", err)
+		return err
 	}
+	return nil
 }
 
-func (s *Server) getOrder(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetOrder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	vars := mux.Vars(r)
-	id := vars["id"]
-
-	// check cache
-	if order, ok := s.cache.Get(id); ok {
-		json.NewEncoder(w).Encode(order)
+	orderUID := vars["order_uid"]
+	if orderUID == "" {
+		s.log.Warn("missing order_uid in path")
+		http.Error(w, "missing order_uid", http.StatusBadRequest)
 		return
 	}
 
-	// check DB
-	order, err := s.repo.GetOrderByUID(r.Context(), id)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if order, ok := s.cache.Get(orderUID); ok && order != nil {
+		s.log.Infow("order fetched from cache", "order_uid", orderUID)
+		if err := json.NewEncoder(w).Encode(order); err != nil {
+			s.log.Errorw("failed to encode order (cache)", "order_uid", orderUID, "err", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	order, err := s.repo.GetOrderByUID(ctx, orderUID)
 	if err != nil {
-		http.Error(w, "order not found", http.StatusNotFound)
+		if errors.Is(err, postgres.ErrOrderNotFound) {
+			s.log.Infow("order not found in db", "order_uid", orderUID)
+			http.Error(w, "order not found", http.StatusNotFound)
+			return
+		}
+		s.log.Errorw("failed to fetch order from db", "order_uid", orderUID, "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	s.cache.Set(id, order)
-	json.NewEncoder(w).Encode(order)
+
+	s.cache.Set(orderUID, order)
+	s.log.Infow("order cached", "order_uid", orderUID)
+
+	if err := json.NewEncoder(w).Encode(order); err != nil {
+		s.log.Errorw("failed to encode order (db)", "order_uid", orderUID, "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 }

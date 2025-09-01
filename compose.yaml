@@ -10,7 +10,11 @@ services:
     depends_on:
       - db
       - kafka
+    volumes:
+      - ./config/config.yaml:/config/config.yaml:ro
+      - ./web:/web:ro
     environment:
+      CONFIG_PATH: /config/config.yaml
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_USER: orders_user
@@ -30,6 +34,7 @@ services:
       - '5432:5432'
     volumes:
       - db-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
