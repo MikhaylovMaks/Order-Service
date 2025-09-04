@@ -11,3 +11,4 @@ postgres:
 kafka:
   broker: kafka:9092
   topic: orders
+  group_id: orders-consumer
