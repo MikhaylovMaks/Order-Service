@@ -1,6 +1,7 @@
 package faker
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/models"
@@ -33,7 +34,7 @@ func GenerateFakeOrder() *models.Order {
 		Entry:       gofakeit.Word(),
 		Delivery: models.Delivery{
 			Name:    gofakeit.Name(),
-			Phone:   gofakeit.Phone(),
+			Phone:   fmt.Sprintf("+1%010d", gofakeit.Number(0, 9999999999)),
 			Zip:     gofakeit.Zip(),
 			City:    gofakeit.City(),
 			Address: gofakeit.Address().Address,
