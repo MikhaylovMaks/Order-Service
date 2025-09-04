@@ -109,5 +109,5 @@ Environment variables can override config values.
 
 Developed by **Maksim Mikhaylov**
 Task assignment: Wildberries
-📧 Email: [maksskamm19@bk.ru](mailto:maksskamm19@bk.ru)
-💻 GitHub: [MikhaylovMaks](https://github.com/MikhaylovMaks)
+Email: [maksskamm19@bk.ru](mailto:maksskamm19@bk.ru)
+GitHub: [MikhaylovMaks](https://github.com/MikhaylovMaks)
