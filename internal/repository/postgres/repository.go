@@ -13,6 +13,7 @@ import (
 type OrderRepository interface {
 	SaveOrder(ctx context.Context, order *models.Order) error
 	GetOrderByUID(ctx context.Context, uid string) (*models.Order, error)
+	GetAllOrderUIDs(ctx context.Context) ([]string, error)
 }
 
 type Repository struct {
@@ -39,7 +40,7 @@ func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 		order.Delivery.Name, order.Delivery.Phone, order.Delivery.Zip, order.Delivery.City, order.Delivery.Address, order.Delivery.Region,
 		order.Delivery.Email).Scan(&deliveryID)
 	if err != nil {
-		return fmt.Errorf("Insert delivery failed: %w", err)
+		return fmt.Errorf("insert delivery failed: %w", err)
 	}
 
 	// 2. Payment
@@ -49,7 +50,7 @@ func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 		order.Payment.Transaction, order.Payment.RequestID, order.Payment.Currency, order.Payment.Provider, order.Payment.Amount, order.Payment.PaymentDT, order.Payment.Bank,
 		order.Payment.DeliveryCost, order.Payment.GoodsTotal, order.Payment.CustomFee).Scan(&paymentID)
 	if err != nil {
-		return fmt.Errorf("Insert payment failed: %w", err)
+		return fmt.Errorf("insert payment failed: %w", err)
 	}
 
 	// 3. Order
@@ -61,7 +62,7 @@ func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 		order.ShardKey, order.SmID, order.DateCreated, order.OofShard,
 		deliveryID, paymentID)
 	if err != nil {
-		return fmt.Errorf("Insert order failed %w", err)
+		return fmt.Errorf("Insert order failed: %w", err)
 	}
 
 	// 4. Items
@@ -77,7 +78,7 @@ func (r *Repository) SaveOrder(ctx context.Context, order *models.Order) error {
 
 	// Commit
 	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit failed %w", err)
+		return fmt.Errorf("commit failed: %w", err)
 	}
 	return nil
 }
@@ -86,14 +87,12 @@ func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Ord
 	var order models.Order
 	var deliveryID, paymentID int
 
-	fmt.Println("Ищу заказ с UID:", uid)
-
 	err := r.db.QueryRow(ctx, `SELECT o.order_uid, o.track_number, o.entry, o.locale, o.internal_signature,
 			   o.customer_id, o.delivery_service, o.shardkey, o.sm_id, o.date_created,
 			   o.oof_shard, o.delivery_id, o.payment_id
-				FROM orders o
-				WHERE o.order_uid = $1
-				`, uid).Scan(&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature,
+			FROM orders o
+			WHERE o.order_uid = $1
+			`, uid).Scan(&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature,
 		&order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID,
 		&order.DateCreated, &order.OofShard, &deliveryID, &paymentID)
 	if err != nil {
@@ -102,8 +101,6 @@ func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Ord
 		}
 		return nil, fmt.Errorf("get order failed: %w", err)
 	}
-
-	fmt.Println("Заказ найден:", order.OrderUID, "deliveryID:", deliveryID, "paymentID:", paymentID)
 
 	// 2. Delivery
 	err = r.db.QueryRow(ctx, `SELECT name, phone, zip, city, address, region, email
@@ -136,11 +133,9 @@ func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Ord
 	rows, err := r.db.Query(ctx, `SELECT chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status
 	FROM items WHERE order_uid = $1`, order.OrderUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrOrderNotFound
-		}
 		return nil, fmt.Errorf("get items failed: %w", err)
 	}
+	defer rows.Close()
 
 	order.Items = []models.Items{}
 	for rows.Next() {
@@ -154,7 +149,27 @@ func (r *Repository) GetOrderByUID(ctx context.Context, uid string) (*models.Ord
 		}
 		order.Items = append(order.Items, item)
 	}
-	fmt.Println("Найдено items:", len(order.Items))
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("items rows error: %w", err)
+	}
 
 	return &order, nil
+}
+
+func (r *Repository) GetAllOrderUIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Query(ctx, `SELECT order_uid FROM orders`)
+	if err != nil {
+		return nil, fmt.Errorf("get all order uids failed: %w", err)
+	}
+	defer rows.Close()
+
+	uids := make([]string, 0)
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return nil, fmt.Errorf("scan uid failed: %w", err)
+		}
+		uids = append(uids, uid)
+	}
+	return uids, nil
 }

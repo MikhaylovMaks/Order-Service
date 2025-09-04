@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,6 +18,7 @@ type Server struct {
 	repo  postgres.OrderRepository
 	cache storage.Cache
 	log   *zap.SugaredLogger
+	srv   *http.Server
 }
 
 func NewServer(port int, repo postgres.OrderRepository, cache storage.Cache, log *zap.SugaredLogger) *Server {
@@ -30,11 +32,24 @@ func (s *Server) Start() error {
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/")))
 
 	addr := ":" + strconv.Itoa(s.port)
+	s.srv = &http.Server{Addr: addr, Handler: r}
 	s.log.Infow("HTTP server listening", "addr", addr)
-	if err := http.ListenAndServe(addr, r); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		s.log.Errorw("http server error", "err", err)
 		return err
 	}
+	return nil
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.srv == nil {
+		return nil
+	}
+	if err := s.srv.Shutdown(ctx); err != nil {
+		s.log.Errorw("http server shutdown error", "err", err)
+		return err
+	}
+	s.log.Info("HTTP server gracefully stopped")
 	return nil
 }
 

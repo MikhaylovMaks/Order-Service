@@ -3,7 +3,6 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/faker"
@@ -31,7 +30,6 @@ func NewProducer(brokers []string, topic string, log *zap.SugaredLogger) *Produc
 }
 
 func (p *Producer) Start(ctx context.Context) {
-	log.Println("Kafka producer started...")
 	ticker := time.NewTicker(5 * time.Second)
 	defer func() {
 		ticker.Stop()

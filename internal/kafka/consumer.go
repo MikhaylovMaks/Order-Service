@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/models"
 	"github.com/MikhaylovMaks/wb_techl0/internal/repository/postgres"
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
+	"github.com/go-playground/validator/v10"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
@@ -17,6 +19,7 @@ type Consumer struct {
 	repo   postgres.OrderRepository
 	cache  storage.Cache
 	log    *zap.SugaredLogger
+	v      *validator.Validate
 }
 
 func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRepository, cache storage.Cache, log *zap.SugaredLogger) *Consumer {
@@ -32,6 +35,7 @@ func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRep
 		repo:   repo,
 		cache:  cache,
 		log:    log,
+		v:      validator.New(),
 	}
 }
 
@@ -50,15 +54,32 @@ func (c *Consumer) Start(ctx context.Context) {
 		}
 
 		var order models.Order
-		if err := json.Unmarshal(m.Value, &order); err != nil || order.OrderUID == "" {
-			c.log.Warnw("invalid message", "err", err, "raw", string(m.Value))
+		if err := json.Unmarshal(m.Value, &order); err != nil {
+			c.log.Warnw("invalid json", "err", err, "raw", string(m.Value))
+			_ = c.reader.CommitMessages(ctx, m)
+			continue
+		}
+		if err := c.v.Struct(order); err != nil {
+			c.log.Warnw("validation failed", "err", err, "order_uid", order.OrderUID)
 			_ = c.reader.CommitMessages(ctx, m)
 			continue
 		}
 
 		if err := c.repo.SaveOrder(ctx, &order); err != nil {
-			c.log.Errorw("failed to save order", "err", err, "order_uid", order.OrderUID)
-			continue
+			// simple retry with fixed backoff
+			var saved bool
+			for attempt := 1; attempt <= 3; attempt++ {
+				if err := c.repo.SaveOrder(ctx, &order); err == nil {
+					saved = true
+					break
+				}
+				c.log.Warnw("retry save order", "attempt", attempt, "order_uid", order.OrderUID)
+				time.Sleep(500 * time.Millisecond)
+			}
+			if !saved {
+				c.log.Errorw("failed to save order after retries", "order_uid", order.OrderUID)
+				continue
+			}
 		}
 
 		c.cache.Set(order.OrderUID, &order)

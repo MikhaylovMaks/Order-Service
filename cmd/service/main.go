@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/MikhaylovMaks/wb_techl0/internal/config"
 	"github.com/MikhaylovMaks/wb_techl0/internal/handlers"
@@ -16,6 +16,7 @@ import (
 	"github.com/MikhaylovMaks/wb_techl0/internal/storage"
 	"github.com/MikhaylovMaks/wb_techl0/pkg/database"
 	"github.com/MikhaylovMaks/wb_techl0/pkg/logger"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -47,6 +48,10 @@ func main() {
 
 	cache := storage.NewMemoryStorage()
 
+	if err := warmUpCache(ctx, log, repo, cache); err != nil {
+		log.Fatalf("cache warm-up failed: %v", err)
+	}
+
 	consumer := kafka.NewConsumer(
 		[]string{cfg.Kafka.Broker},
 		cfg.Kafka.Topic,
@@ -60,7 +65,6 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(3)
 	server := handlers.NewServer(cfg.Server.Port, repo, cache, log)
-	http.Handle("/", http.FileServer(http.Dir("./web")))
 	go func() {
 		defer wg.Done()
 		consumer.Start(ctx)
@@ -82,6 +86,32 @@ func main() {
 	log.Info("shutdown signal received")
 	cancel()
 
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	_ = server.Shutdown(shutdownCtx)
+
 	wg.Wait()
 	log.Info("service stopped")
+}
+
+func warmUpCache(ctx context.Context, log *zap.SugaredLogger, repo postgres.OrderRepository, cache storage.Cache) error {
+	warmCtx, warmCancel := context.WithTimeout(ctx, 10*time.Second)
+	uids, err := repo.GetAllOrderUIDs(warmCtx)
+	warmCancel()
+	if err != nil {
+		log.Errorw("failed to warm cache: get uids", "err", err)
+		return err
+	}
+	for _, uid := range uids {
+		orderCtx, orderCancel := context.WithTimeout(ctx, 5*time.Second)
+		order, err := repo.GetOrderByUID(orderCtx, uid)
+		orderCancel()
+		if err != nil {
+			log.Errorw("failed to warm cache: get order", "order_uid", uid, "err", err)
+			return err
+		}
+		cache.Set(uid, order)
+	}
+	log.Infow("cache warm-up completed", "count", len(uids))
+	return nil
 }
