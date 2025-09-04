@@ -7,7 +7,7 @@ The service consumes messages from **Kafka**, validates and stores them in **Pos
 
 ## Features
 
-- Connects to Kafka (segmentio/kafka-go) and processes messages in real time.
+- Connects to Kafka [segmentio/kafka-go](https://github.com/segmentio/kafka-go) and processes messages in real time.
 - Stores valid order data in PostgreSQL using transactions.
 - In-memory cache with warm-up on startup and invalidation support.
 - HTTP API:
