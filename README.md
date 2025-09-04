@@ -31,15 +31,6 @@ The service consumes messages from **Kafka**, validates and stores them in **Pos
 
 ## Architecture Overview
 
-[Kafka Topic] --> [Consumer] --> [Parser/Validator] --> [PostgreSQL]
-| ^
-v |
-[In-memory Cache] ---+
-|
-[HTTP API]
-|
-[Web UI (/web)]
-
 - Consumer subscribes to a Kafka topic with orders.
 - Parser/Validator processes incoming JSON, discarding/logging invalid messages.
 - Repository stores the order model in PostgreSQL atomically.
@@ -51,9 +42,63 @@ v |
 
 - cmd/service/ — service entrypoint (main).
 - config/ — configuration files / environment defaults.
-- internal/ — domain logic (consumer, producer, cache, repository, http-handlers).
+- internal/ — domain logic (consumer, producer, cache, repository, http-handlers, models).
 - pkg/ — shared packages (logger, postgres).
 - migrations/ — SQL migrations for PostgreSQL.
 - web/ — static frontend (HTML).
-- compose.yaml — Docker Compose configuration for local infra..
+- compose.yaml — Docker Compose configuration for local infra.
 - Dockerfile, .dockerignore — containerization.
+
+## Quick start (recommended)
+
+Using Docker Compose (local dev):
+
+```bash
+git clone https://github.com/MikhaylovMaks/Order-Service.git
+cd Order-Service
+docker compose up -d --build
+# HTTP сервер: http://localhost:8081
+# Kafka UI (Kafdrop): http://localhost:9000
+# Postgres: localhost:5432
+```
+
+- The compose stack uses compose.yaml from the repo root to bring up Kafka, PostgreSQL and the service.
+- Service typically binds to :8081. See README.Docker.md for Docker-specific instructions.
+
+## Verification
+
+- Open http://localhost:8081 — static page served from the web/ directory.
+- API endpoint: GET http://localhost:8081/orders/{order_uid}.
+- A producer publishes test orders into Kafka every 5 seconds (see compose.yaml).
+
+## Stopping the stack
+
+```bash
+docker compose down -v
+```
+
+## Configuration
+
+Default config file: `config/config.yaml` (mounted into the service container).
+Environment variables can override config values.
+
+# Parameters
+
+- server.port — HTTP server port
+- postgres.host, port, user, password, dbname — PostgreSQL connection
+- kafka.broker, topic, group_id — Kafka connection
+
+# Environment variables (example from compose.yaml)
+
+- CONFIG_PATH=/config/config.yaml
+- POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+- KAFKA_BROKER, KAFKA_TOPIC, KAFKA_GROUP_ID
+
+# HTTP API
+
+`GET /orders/{order_uid}`
+
+- 200 — JSON with order details
+- 404 — order not found
+- 400 — invalid request
+- 500 — internal server error
