@@ -1,31 +1,25 @@
 # Order Service
 
 A demo microservice written in Go for processing and displaying orders.
-The service consumes messages from **Kafka**, validates and stores them in **PostgreSQL**, **caches** the latest orders in memory, and exposes them via an **HTTP API** and a simple **web interface**.
+The service consumes messages from **Kafka**, validates and stores them in **PostgreSQL**, and exposes order data through a **cached** in-memory layer, and exposes them via an **HTTP API** and a simple **web interface**.
 
 ---
 
-## 📌 Features
+## Features
 
-- Connects to Kafka and processes messages in real time.
+- Connects to Kafka (`segmentio/kafka-go`) and processes messages in real time.
 - Stores valid order data in PostgreSQL using transactions.
-- Caches recent orders in memory for fast repeated queries.
-- Preloads the cache from the database on startup.
+- In-memory cache with warm-up on startup and invalidation support.
 - HTTP API:
   - `GET /orders/{order_uid}` — returns order details as JSON.
 - Web interface:
-  - Minimal HTML page to enter an order_id and view order data via the API.
+  - Static HTML UI for querying orders by ID.
 
 ---
 
 ## Tech Stack
 
-- **Go** — main language.
-- **Kafka** — message broker.
-- **PostgreSQL** — database.
-- **Gorilla Mux** — HTTP router.
-- **Zap** — structured logging.
-- **Docker & Docker Compose** — local infrastructure.
+Go • Kafka • PostgreSQL • Docker Compose • Gorilla Mux • Zap Logger
 
 ---
 
@@ -57,7 +51,7 @@ Using Docker Compose (local dev):
 git clone https://github.com/MikhaylovMaks/Order-Service.git
 cd Order-Service
 docker compose up -d --build
-# HTTP сервер: http://localhost:8081
+# HTTP server: http://localhost:8081
 # Kafka UI (Kafdrop): http://localhost:9000
 # Postgres: localhost:5432
 ```
@@ -71,22 +65,29 @@ docker compose up -d --build
 - API endpoint: GET http://localhost:8081/orders/{order_uid}.
 - A producer publishes test orders into Kafka every 5 seconds (see compose.yaml).
 
-## Stopping the stack
+# Stopping the stack
 
 ```bash
 docker compose down -v
 ```
 
+## Run locally (without Docker)
+
+````## Run locally (without Docker)
+
+Requirements: Go 1.23+, PostgreSQL, Kafka.
+
+```bash
+export CONFIG_PATH=$(pwd)/config/config.yaml
+# ensure Postgres & Kafka are running and match config
+
+go run ./cmd/service
+````
+
 ## Configuration
 
 Default config file: `config/config.yaml` (mounted into the service container).
 Environment variables can override config values.
-
-# Parameters
-
-- server.port — HTTP server port
-- postgres.host, port, user, password, dbname — PostgreSQL connection
-- kafka.broker, topic, group_id — Kafka connection
 
 # Environment variables (example from compose.yaml)
 
