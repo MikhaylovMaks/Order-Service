@@ -51,6 +51,7 @@ Using Docker Compose (local dev):
 git clone https://github.com/MikhaylovMaks/Order-Service.git
 cd Order-Service
 docker compose up -d --build
+docker compose up
 # HTTP server: http://localhost:8081
 # Kafka UI (Kafdrop): http://localhost:9000
 # Postgres: localhost:5432
