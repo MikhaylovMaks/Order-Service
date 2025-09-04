@@ -7,7 +7,7 @@ The service consumes messages from **Kafka**, validates and stores them in **Pos
 
 ## Features
 
-- Connects to Kafka (`segmentio/kafka-go`) and processes messages in real time.
+- Connects to Kafka (segmentio/kafka-go) and processes messages in real time.
 - Stores valid order data in PostgreSQL using transactions.
 - In-memory cache with warm-up on startup and invalidation support.
 - HTTP API:
@@ -103,3 +103,10 @@ Environment variables can override config values.
 - 404 — order not found
 - 400 — invalid request
 - 500 — internal server error
+
+## Author
+
+Developed by **Maksim Mikhaylov**
+Task assignment: Wildberries
+📧 Email: [maksskamm19@bk.ru](mailto:maksskamm19@bk.ru)
+💻 GitHub: [MikhaylovMaks](https://github.com/MikhaylovMaks)
