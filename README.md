@@ -71,18 +71,26 @@ docker compose up -d --build
 docker compose down -v
 ```
 
-## Run locally (without Docker)
+# Tests & Benchmarks
 
-````## Run locally (without Docker)
+The service includes unit tests and benchmark tests for key components:
 
-Requirements: Go 1.23+, PostgreSQL, Kafka.
+- Handlers: Unit tests for HTTP API endpoints (/orders/{order_uid}).
+  Benchmarks for cached vs non-cached order retrieval.
+- Kafka Consumer/Producer
+  Unit tests for order validation, parsing, and message handling.
+  Benchmarks simulate message throughput and latency.
+- Storage / Repository
+  Unit tests for in-memory cache (MemoryStorage) operations: Get, Set, Invalidate.
+  Repository tests validate SaveOrder and GetOrderByUID log
 
-```bash
-export CONFIG_PATH=$(pwd)/config/config.yaml
-# ensure Postgres & Kafka are running and match config
+```
+# Run all unit tests
+go test ./...
 
-go run ./cmd/service
-````
+# Run benchmarks
+go test -bench=. ./internal/handlers
+```
 
 ## Configuration
 
