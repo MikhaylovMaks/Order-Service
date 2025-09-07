@@ -32,6 +32,13 @@ Go • Kafka • PostgreSQL • Docker Compose • Gorilla Mux • Zap Logger
 - HTTP API retrieves orders by order_uid (from cache first, DB fallback).
 - Web UI — static page that queries the API.
 
+### Middleware
+
+- Assigns a unique request ID for tracing (`X-Request-ID`).
+- Logs request metadata: method, path, status, duration, request ID.
+- Handles panics and returns 500 without crashing the server.
+- Enforces request timeout (15 seconds).
+
 ## Repository Structure
 
 - cmd/service/ — service entrypoint (main).
