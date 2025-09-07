@@ -19,7 +19,7 @@ The service consumes messages from **Kafka**, validates and stores them in **Pos
 
 ## Tech Stack
 
-Go • Kafka • PostgreSQL • Docker Compose • Gorilla Mux • Zap Logger
+Go • Kafka • PostgreSQL • Docker Compose • Gorilla Mux • Zap Logger • Middleware
 
 ---
 
