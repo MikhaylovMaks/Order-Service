@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// структура Kafka-консюмера
 type Consumer struct {
 	reader *kafka.Reader
 	repo   postgres.OrderRepository
@@ -22,6 +23,7 @@ type Consumer struct {
 	v      *validator.Validate
 }
 
+// конструктор Kafka Consumer
 func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRepository, cache storage.Cache, log *zap.SugaredLogger) *Consumer {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
@@ -39,6 +41,7 @@ func NewConsumer(brokers []string, topic, groupID string, repo postgres.OrderRep
 	}
 }
 
+// запускает обработку сообщений из Kafka
 func (c *Consumer) Start(ctx context.Context) {
 	defer c.reader.Close()
 	c.log.Info("Kafka consumer started")
@@ -58,7 +61,7 @@ func (c *Consumer) Start(ctx context.Context) {
 			c.log.Warnw("invalid json", "err", err, "raw", string(m.Value))
 			_ = c.reader.CommitMessages(ctx, m)
 			continue
-		}
+		} // Валидация структуры заказа
 		if err := c.v.Struct(order); err != nil {
 			c.log.Warnw("validation failed", "err", err, "order_uid", order.OrderUID)
 			_ = c.reader.CommitMessages(ctx, m)

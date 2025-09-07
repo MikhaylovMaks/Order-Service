@@ -32,6 +32,7 @@ func NewServer(port int, repo postgres.OrderRepository, cache storage.Cache, log
 		log:   log}
 }
 
+// Создаёт маршрутизатор и регистрирует маршруты и middlewares
 func (s *Server) Router() http.Handler {
 	r := mux.NewRouter()
 
@@ -57,6 +58,7 @@ func (s *Server) Router() http.Handler {
 	return r
 }
 
+// запуск HTTP-сервера
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
 	s.srv = &http.Server{
@@ -84,6 +86,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// обработчик запроса на получение заказа по UID
 func (s *Server) GetOrder(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -134,6 +137,7 @@ type ctxKey string
 
 const ctxKeyReqID ctxKey = "req_id"
 
+// добавляет уникальный идентификатор запроса в контекст и заголовок
 func withRequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
@@ -156,6 +160,7 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// // логирование всех HTTP-запросов
 func (s *Server) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -172,6 +177,7 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 	})
 }
 
+// для перехвата паник и возврата 500
 func (s *Server) withRecovery(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -184,6 +190,8 @@ func (s *Server) withRecovery(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+//для ограничения времени выполнения запроса
 
 func withTimeout(d time.Duration) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {

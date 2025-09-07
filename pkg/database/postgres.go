@@ -18,6 +18,7 @@ func (s *Storage) Close() {
 	}
 }
 
+// создает новый пул соединений с Postgres по заданной конфигурации
 func NewPostgres(ctx context.Context, cfg config.Postgres) (*Storage, error) {
 	connStr := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s",

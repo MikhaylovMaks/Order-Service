@@ -29,6 +29,7 @@ func NewProducer(brokers []string, topic string, log *zap.SugaredLogger) *Produc
 	}
 }
 
+// запускает отправку сообщений в Kafka (эмулятор через faker_order)
 func (p *Producer) Start(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer func() {

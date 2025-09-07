@@ -8,6 +8,7 @@ import (
 	"github.com/brianvoe/gofakeit/v7"
 )
 
+// GenerateFakeOrder — функция для генерации случайного заказа.
 func GenerateFakeOrder() *models.Order {
 	gofakeit.Seed(time.Now().UnixNano())
 	numItems := gofakeit.Number(1, 5)

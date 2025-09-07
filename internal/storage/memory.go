@@ -24,6 +24,7 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
+// получение заказа из кэша
 func (s *MemoryStorage) Get(orderUID string) (*models.Order, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -31,18 +32,21 @@ func (s *MemoryStorage) Get(orderUID string) (*models.Order, bool) {
 	return order, ok
 }
 
+// добавление или обновление заказа в кэше
 func (s *MemoryStorage) Set(orderUID string, order *models.Order) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.orders[orderUID] = order
 }
 
+// удаление конкретного заказа из кэша
 func (s *MemoryStorage) Invalidate(orderUID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.orders, orderUID)
 }
 
+// очистка всего кэша
 func (s *MemoryStorage) InvalidateAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

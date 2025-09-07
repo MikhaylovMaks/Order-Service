@@ -27,6 +27,7 @@ func New() *App {
 }
 
 func (a *App) Run() error {
+	// инициализация логгера
 	log, err := logger.NewLogger()
 	if err != nil {
 		return err
@@ -34,6 +35,7 @@ func (a *App) Run() error {
 	defer log.Sync()
 	log.Info("service starting...")
 
+	// создаём контекст с возможностью отмены
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -59,6 +61,7 @@ func (a *App) Run() error {
 	// cache
 	cache := storage.NewMemoryStorage()
 
+	// прогреваем кэш
 	if err := warmUpCache(ctx, log, repo, cache); err != nil {
 		log.Fatalf("cache warm-up failed: %v", err)
 	}
@@ -78,19 +81,19 @@ func (a *App) Run() error {
 	server := handlers.NewServer(cfg.Server.Port, repo, cache, log)
 
 	var wg sync.WaitGroup
-
+	// запускаем consumer в отдельной горутин
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		consumer.Start(ctx)
 	}()
-
+	// запускаем producer в отдельной горутине
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		producer.Start(ctx)
 	}()
-
+	// запускаем HTTP-сервер в отдельной горутине
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -113,6 +116,7 @@ func (a *App) Run() error {
 	return nil
 }
 
+// warmUpCache — предварительно загружает заказы из БД в кэш
 func warmUpCache(ctx context.Context, log *zap.SugaredLogger, repo postgres.OrderRepository, cache storage.Cache) error {
 	warmCtx, warmCancel := context.WithTimeout(ctx, 10*time.Second)
 	uids, err := repo.GetAllOrderUIDs(warmCtx)
