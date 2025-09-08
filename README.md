@@ -1,6 +1,6 @@
 # Order Service
 
-A demo microservice written in Go for processing and displaying orders.
+(Wildberries TECH) A demo microservice written in Go for processing and displaying orders.
 The service consumes messages from **Kafka**, validates and stores them in **PostgreSQL**, and exposes order data through a **cached** in-memory layer, and exposes them via an **HTTP API** and a simple **web interface**.
 
 ---
